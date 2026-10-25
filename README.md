@@ -162,16 +162,18 @@ Checks:
 3. `opencode.jsonc` parses as JSON and contains `mcp.servers.headroom`,
    `mcp.servers.serena`, and `providers.headroom`.
 4. `~/.config/opencode/node_modules/@opencode/plugin` exists.
-5. `~/.agents/skills/opencode-delegate/SKILL.md` and
+5. No path under `~/.config/opencode/` or `~/.config/delegate-skills/` is
+   world-writable.
+6. `~/.agents/skills/opencode-delegate/SKILL.md` and
    `~/.agents/skills/delegate-setup/SKILL.md` exist.
-6. `~/.config/delegate-skills/config.json` parses, defines at least one lane,
+7. `~/.config/delegate-skills/config.json` parses, defines at least one lane,
    and every lane names an implementer.
-7. `rtk rewrite "git status"` emits `rtk git status` (the exit status is ignored,
+8. `rtk rewrite "git status"` emits `rtk git status` (the exit status is ignored,
    because rtk exits 3 when no global hook is installed).
-8. Port 8787 is listening — only with `--with-headroom` (skipped when `ss` is
+9. Port 8787 is listening — only with `--with-headroom` (skipped when `ss` is
    unavailable).
-9. `opencode debug paths config` resolves to the OpenCode config directory
-   (`~/.config/opencode` by default; `$XDG_CONFIG_HOME` is honored).
+10. `opencode debug paths config` resolves to the OpenCode config directory
+    (`~/.config/opencode` by default; `$XDG_CONFIG_HOME` is honored).
 
 ## Update flow
 

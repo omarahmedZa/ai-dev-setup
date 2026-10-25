@@ -33,6 +33,46 @@ test_no_secret_shaped_strings_in_repo() {
   fi
 }
 
+# Secret-shaped strings must not survive anywhere in reachable git history.
+# Report only commit/file context so a failure never prints the credential.
+test_no_secret_shaped_strings_in_git_history() {
+  command -v git >/dev/null 2>&1 || return 0
+
+  local history
+  if ! history=$(git -C "$ROOT" log -p --all --format='commit %H' -- \
+    . ':(exclude)tests/11-security.test.sh' 2>/dev/null); then
+    # An unborn branch has no history to scan; an unavailable repository is
+    # likewise not a secret-scanning failure.
+    return 0
+  fi
+
+  local pattern='sk-[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|BEGIN [A-Z ]*PRIVATE KEY'
+  local matching_lines
+  matching_lines=$(printf '%s\n' "$history" | grep -nE -- "$pattern" | cut -d: -f1 || true)
+  [[ -z "$matching_lines" ]] && return 0
+
+  local line commit diff_start diff_context old_file new_file file
+  line=${matching_lines%%$'\n'*}
+  commit=$(printf '%s\n' "$history" | head -n "$line" | grep '^commit ' | tail -n 1 || true)
+  diff_start=$(printf '%s\n' "$history" | head -n "$line" \
+    | grep -n '^diff --git ' | tail -n 1 | cut -d: -f1 || true)
+  if [[ -n "$diff_start" ]]; then
+    diff_context=$(printf '%s\n' "$history" | head -n "$line" | tail -n "+$diff_start")
+    old_file=$(printf '%s\n' "$diff_context" | grep '^--- ' | tail -n 1 || true)
+    new_file=$(printf '%s\n' "$diff_context" | grep '^+++ ' | tail -n 1 || true)
+    if [[ "$new_file" == '+++ /dev/null' ]]; then
+      file=$old_file
+    else
+      file=${new_file:-$old_file}
+    fi
+    file=${file:-$(printf '%s\n' "$diff_context" | head -n 1)}
+  fi
+  if [[ -n "$file" ]] && printf '%s\n' "$file" | grep -qE -- "$pattern"; then
+    file='[redacted sensitive path]'
+  fi
+  _fail "expected no secret-shaped strings in git history, got ${commit:-unknown commit} ${file:-unknown file}"
+}
+
 # Credentials belong to the auth layer: the installer must never touch or
 # mention service.json, not even in a hint or an error message.
 test_installer_never_references_service_json() {
@@ -159,6 +199,50 @@ test_installed_tree_has_no_world_writable_paths() {
   umask "$previous_umask"
   assert_exit 0
   assert_no_world_writable "$HOME/.config/opencode" "$HOME/.config/delegate-skills"
+}
+
+# Existing permissive trees must be tightened too, not only newly created ones.
+test_preexisting_writable_modes_are_tightened() {
+  new_sandbox
+  mkdir -p "$HOME/.config/opencode/nested" "$HOME/.config/delegate-skills"
+  chmod 777 "$HOME/.config/opencode" "$HOME/.config/opencode/nested" \
+    "$HOME/.config/delegate-skills"
+  printf 'custom\n' > "$HOME/.config/opencode/nested/local.txt"
+  printf 'safe\n' > "$HOME/.config/opencode/nested/safe.txt"
+  chmod 666 "$HOME/.config/opencode/nested/local.txt"
+  chmod 600 "$HOME/.config/opencode/nested/safe.txt"
+
+  run_install --config-only --force
+  assert_exit 0
+  assert_no_world_writable "$HOME/.config/opencode" "$HOME/.config/delegate-skills"
+  check find "$HOME/.config/opencode" "$HOME/.config/delegate-skills" -perm -0020 -print -quit
+  assert_eq "" "$OUT"
+  assert_eq "600" "$(stat -c '%a' "$HOME/.config/opencode/nested/safe.txt")"
+}
+
+# Symlink mode bits are always 0777 on Linux and are not permission findings.
+test_symlinks_are_excluded_from_permission_checks() {
+  new_sandbox
+  run_install --config-only --force
+  assert_exit 0
+  mkdir -p "$HOME/.config/opencode/node_modules/.bin"
+  ln -s ../../opencode.jsonc "$HOME/.config/opencode/node_modules/.bin/tool"
+  run_install --doctor
+  assert_exit 0
+  assert_contains "$OUT" "PASS permissions"
+  check test -L "$HOME/.config/opencode/node_modules/.bin/tool"
+  assert_exit 0
+
+  new_sandbox
+  mkdir -p "$HOME/.config/opencode/node_modules/.bin"
+  ln -s ../../opencode.jsonc "$HOME/.config/opencode/node_modules/.bin/tool"
+  run_install --config-only --force
+  assert_exit 0
+  run_install --doctor
+  assert_exit 0
+  assert_contains "$OUT" "PASS permissions"
+  check test -L "$HOME/.config/opencode/node_modules/.bin/tool"
+  assert_exit 0
 }
 
 # Ignored artifact paths must never make it into the index in the first place.

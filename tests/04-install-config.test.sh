@@ -16,7 +16,7 @@ test_stale_config_files_are_removed_and_backed_up() {
   assert_exit 0
   assert_file_missing "$HOME/.config/opencode/opencode.json"
   assert_file_missing "$HOME/.config/opencode/opencode.jsonc.headroom-backup"
-  check test -n "$(find "$HOME/.config/opencode/backups" -name 'opencode.json*' -print -quit)"
+  check test -n "$(find "$HOME/.config/opencode/backups" -name 'opencode.json*' -print -quit 2>/dev/null)"
   assert_exit 0
 }
 test_second_run_is_idempotent() {
@@ -34,7 +34,7 @@ test_service_json_is_never_touched_or_printed() {
   assert_file_exists "$HOME/.config/opencode/service.json"
   assert_file_contains "$HOME/.config/opencode/service.json" "TOPSECRET"
   assert_not_contains "$OUT" "TOPSECRET"
-  check test -z "$(find "$HOME/.config/opencode/backups" -name service.json -print -quit)"
+  check test -z "$(find "$HOME/.config/opencode/backups" -name service.json -print -quit 2>/dev/null)"
   assert_exit 0
 }
 test_next_steps_are_printed() {

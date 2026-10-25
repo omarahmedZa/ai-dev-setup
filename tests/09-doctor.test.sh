@@ -10,11 +10,21 @@ test_doctor_passes_after_install() {
   assert_not_contains "$OUT" "FAIL"
   assert_contains "$OUT" "PASS"
   for label in "PASS commands" "PASS config files" "PASS config jsonc" \
-               "PASS plugin deps" "PASS delegate skills" "PASS delegate lanes" \
-               "PASS rtk rewrite" "PASS opencode paths"; do
+               "PASS plugin deps" "PASS permissions" "PASS delegate skills" \
+               "PASS delegate lanes" "PASS rtk rewrite" "PASS opencode paths"; do
     assert_contains "$OUT" "$label"
   done
-  assert_contains "$OUT" "doctor: 8 passed, 0 failed, 0 skipped"
+  assert_contains "$OUT" "doctor: 9 passed, 0 failed, 0 skipped"
+}
+
+test_doctor_fails_on_world_writable_config() {
+  new_sandbox
+  run_install --config-only --force
+  chmod 777 "$HOME/.config/opencode"
+  run_install --doctor
+  assert_exit 1
+  assert_contains "$OUT" "FAIL permissions"
+  assert_contains "$OUT" "doctor: 8 passed, 1 failed, 0 skipped"
 }
 test_doctor_fails_on_broken_lane_config() {
   new_sandbox

@@ -248,6 +248,13 @@ apply_files() {
   done
 }
 
+# Tighten only pre-existing group/world-writable paths in the two config trees.
+# New files are protected by umask 022; dry-run returns before reaching this.
+tighten_permissions() {
+  find "$CFG" "$HOME/.config/delegate-skills" \( -type f -o -type d \) -perm -0002 \
+    -exec chmod go-w {} + 2>/dev/null || true
+}
+
 # remove_stale <path>: back up and delete one known-obsolete config file.
 remove_stale() {
   local path=$1
@@ -406,6 +413,7 @@ install_all() {
   ensure_plugin_deps
   install_skills
   deploy_headroom
+  tighten_permissions
 
   if (( INSTALLED == 0 && REMOVED == 0 && SKIPPED > 0 )); then
     printf 'up to date (%d files unchanged)\n' "$SKIPPED"
@@ -531,6 +539,15 @@ doctor_plugin_deps() {
   fi
 }
 
+doctor_permissions() {
+  local found
+  found=$(find "$CFG" "$HOME/.config/delegate-skills" \( -type f -o -type d \) -perm -0002 -print 2>/dev/null || true)
+  if [[ -n "$found" ]]; then
+    printf 'world-writable paths:\n%s\n' "$found"
+    return 1
+  fi
+}
+
 doctor_skills() {
   local dir missing=()
   for dir in "$HOME/.agents/skills/opencode-delegate" "$HOME/.agents/skills/delegate-setup"; do
@@ -616,6 +633,7 @@ doctor() {
   check "config files" doctor_config_files
   check "config jsonc" doctor_config_jsonc
   check "plugin deps" doctor_plugin_deps
+  check "permissions" doctor_permissions
   check "delegate skills" doctor_skills
   check "delegate lanes" doctor_lanes
   check "rtk rewrite" doctor_rtk_rewrite

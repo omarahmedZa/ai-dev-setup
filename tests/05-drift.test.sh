@@ -54,9 +54,11 @@ test_dry_run_writes_nothing_and_takes_no_backup() {
   new_sandbox
   mkdir -p "$HOME/.config/opencode"
   echo '{"theme":"custom"}' > "$HOME/.config/opencode/cli.json"
+  chmod 777 "$HOME/.config/opencode"
   run_install --config-only --dry-run
   assert_exit 0
   assert_contains "$OUT" "would create"
+  assert_eq "777" "$(stat -c '%a' "$HOME/.config/opencode")"
   assert_file_missing "$HOME/.config/opencode/AGENTS.md"
   assert_file_missing "$HOME/.config/opencode/backups"
 }

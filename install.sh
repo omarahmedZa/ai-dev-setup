@@ -2,6 +2,11 @@
 # ai-dev-setup installer: CLI contract and preflight.
 set -euo pipefail
 
+# Installed config is executed by the agent (plugins, MCP definitions, lanes),
+# so its modes must not depend on the caller's umask: a permissive umask would
+# otherwise leave world-writable config trees any local user can rewrite.
+umask 022
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck disable=SC2034 # consumed by later installation stages
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"

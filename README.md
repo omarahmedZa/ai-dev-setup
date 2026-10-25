@@ -50,15 +50,33 @@ Other steps:
   install a runtime silently.
 - `git` and network access to clone this repository and reach the upstream
   installers. `--config-only` still needs network access for `npx skills add`.
+- GitHub credentials for this **private** repository, established *before*
+  cloning: run `gh auth login` (choose GitHub.com → HTTPS) or register an SSH
+  key and use the SSH URL. `gh` (https://cli.github.com/) also provides
+  `gh repo clone` for the primary quick-start path.
 
 ## Quick start
 
+The repository is private, so authenticate to GitHub **before** cloning.
+`gh auth login` establishes HTTPS credentials that `gh repo clone` and later
+`git push` calls can use:
+
 ```sh
-git clone git@github.com:omarahmedZa/ai-dev-setup.git
+gh auth login                        # GitHub.com -> HTTPS; authenticate once
+gh repo clone omarahmedZa/ai-dev-setup
 cd ai-dev-setup
 ./install.sh --dry-run   # optional: print the plan, write nothing
 ./install.sh
 ./install.sh --doctor
+```
+
+If `gh` is not installed, or you already have an SSH key registered with GitHub,
+clone over SSH instead:
+
+```sh
+git clone git@github.com:omarahmedZa/ai-dev-setup.git
+cd ai-dev-setup
+./install.sh
 ```
 
 `--dry-run` first is recommended on a machine that already has an OpenCode
@@ -116,8 +134,8 @@ The installer prints these at the end of a real run:
 1. `opencode auth login` — authenticate each provider you use.
 2. Sign in to your headroom account if the proxy backend requires it (only
    relevant with `--with-headroom`).
-3. `gh auth login` — authenticate GitHub over HTTPS if you cloned with HTTPS
-   rather than SSH.
+3. `gh auth login` — authenticate GitHub if you did not already do so before
+   cloning (the primary quick start does); needed for HTTPS pushes.
 
 ## Doctor
 

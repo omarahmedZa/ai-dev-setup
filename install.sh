@@ -598,17 +598,20 @@ main() {
     return 0
   fi
 
-  need_cmd bash
-  need_cmd curl
-  check_node
-  check_payload
-
+  # Doctor diagnoses the environment itself, so it must run before the
+  # install-only preflight (which exits on a missing/old Node or incomplete
+  # checkout) and report those problems as FAIL lines.
   if [[ "$DOCTOR" == true ]]; then
     if ! doctor; then
       exit 1
     fi
     return 0
   fi
+
+  need_cmd bash
+  need_cmd curl
+  check_node
+  check_payload
 
   install_all
 }

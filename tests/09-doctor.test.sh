@@ -34,3 +34,16 @@ test_doctor_never_calls_the_opencode_api() {
   run_install --doctor
   assert_file_not_contains "$TEST_LOG" "api get"
 }
+test_doctor_reports_old_node_instead_of_dying() {
+  new_sandbox
+  run_install --config-only --force
+  mkdir -p "$SANDBOX/oldnode"
+  printf '#!/bin/sh\nif [ "${1:-}" = "-v" ]; then echo v16.0.0; fi\nexit 0\n' \
+    > "$SANDBOX/oldnode/node"
+  chmod +x "$SANDBOX/oldnode/node"
+  PATH="$SANDBOX/oldnode:$PATH" run_install --doctor
+  assert_exit 1
+  assert_contains "$OUT" "FAIL commands"
+  assert_contains "$OUT" "Node.js >= 18 required"
+  assert_contains "$OUT" "doctor: "
+}

@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck disable=SC2034 # consumed by later installation stages
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+LOCKHASH_FILE="$CFG/.lockhash"
 
 DRY_RUN=false
 # shellcheck disable=SC2034 # consumed by later installation stages
@@ -193,6 +194,38 @@ remove_stale() {
   printf 'removed stale %s\n' "$path"
 }
 
+# ensure_plugin_deps: local plugins import @opencode/plugin, so $CFG needs
+# node_modules. Install only when the plugin is missing or the installed
+# lockfile differs from the hash recorded at the last successful install.
+ensure_plugin_deps() {
+  local plugin_dir="$CFG/node_modules/@opencode/plugin"
+  local lock_file="$CFG/package-lock.json"
+  local hash
+
+  # In a dry run the payload is not copied; report against what would be
+  # installed by hashing the repository lockfile.
+  if [[ "$DRY_RUN" == true ]]; then
+    lock_file="$ROOT/config/package-lock.json"
+  fi
+  hash=$(sha256sum "$lock_file" | awk '{print $1}')
+
+  if [[ -e "$plugin_dir" && -f "$LOCKHASH_FILE" ]] &&
+     [[ "$(cat "$LOCKHASH_FILE")" == "$hash" ]]; then
+    printf 'plugin deps up to date\n'
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    printf 'would run: npm install --omit=dev (in %s)\n' "$CFG"
+    return 0
+  fi
+
+  ( cd "$CFG" && npm install --omit=dev ) || die "npm install failed"
+
+  sha256sum "$CFG/package-lock.json" | awk '{print $1}' > "$LOCKHASH_FILE"
+  printf 'installed plugin dependencies\n'
+}
+
 # build_file_map: src|dest pairs for the config payload. Recursion over
 # plugins/ and skills/ preserves relative paths (including dotfiles).
 build_file_map() {
@@ -200,6 +233,8 @@ build_file_map() {
     "$ROOT/config/opencode.jsonc|$CFG/opencode.jsonc"
     "$ROOT/config/cli.json|$CFG/cli.json"
     "$ROOT/config/AGENTS.md|$CFG/AGENTS.md"
+    "$ROOT/config/package.json|$CFG/package.json"
+    "$ROOT/config/package-lock.json|$CFG/package-lock.json"
     "$ROOT/delegate/config.json|$HOME/.config/delegate-skills/config.json"
   )
   local src
@@ -229,6 +264,7 @@ install_all() {
   if [[ "$DRY_RUN" == true ]]; then
     remove_stale "$CFG/opencode.json"
     remove_stale "$CFG/opencode.jsonc.headroom-backup"
+    ensure_plugin_deps
     return 0
   fi
 
@@ -243,6 +279,8 @@ install_all() {
 
   remove_stale "$CFG/opencode.json"
   remove_stale "$CFG/opencode.jsonc.headroom-backup"
+
+  ensure_plugin_deps
 
   if (( INSTALLED == 0 && REMOVED == 0 && SKIPPED > 0 )); then
     printf 'up to date (%d files unchanged)\n' "$SKIPPED"

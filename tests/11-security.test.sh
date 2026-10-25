@@ -168,28 +168,29 @@ test_piped_installers_are_pipefail_guarded() {
   done
 }
 
-# assert_no_world_writable <dir>...: every directory must exist and nothing
-# under it may carry the world-write bit.
-assert_no_world_writable() {
+# assert_no_group_or_world_writable <dir>...: every directory must exist and
+# nothing under it may carry the group- or world-write bit.
+assert_no_group_or_world_writable() {
   local dir found
   for dir in "$@"; do
     check test -d "$dir"
     assert_exit 0
-    found=$(find "$dir" -perm -0002 -print 2>/dev/null || true)
+    found=$(find "$dir" -perm /0022 -print 2>/dev/null || true)
     if [[ -n "$found" ]]; then
-      _fail "expected no world-writable paths under $dir, got: $(printf '%s\n' "$found" | head -n 5 | tr '\n' ' ')"
+      _fail "expected no group- or world-writable paths under $dir, got: $(printf '%s\n' "$found" | head -n 5 | tr '\n' ' ')"
     fi
   done
 }
 
-# Installed config trees must not be world-writable: any other local user could
-# rewrite the agent config, plugins, or delegation lanes. The mode must not come
-# from the caller's umask either, so the install is repeated under umask 000.
-test_installed_tree_has_no_world_writable_paths() {
+# Installed config trees must not be group- or world-writable: any other local
+# user in the group (or on the machine) could rewrite the agent config, plugins,
+# or delegation lanes. The mode must not come from the caller's umask either, so
+# the install is repeated under umask 000.
+test_installed_tree_has_no_group_or_world_writable_paths() {
   new_sandbox
   run_install --config-only --force
   assert_exit 0
-  assert_no_world_writable "$HOME/.config/opencode" "$HOME/.config/delegate-skills"
+  assert_no_group_or_world_writable "$HOME/.config/opencode" "$HOME/.config/delegate-skills"
 
   local previous_umask
   previous_umask=$(umask)
@@ -198,7 +199,7 @@ test_installed_tree_has_no_world_writable_paths() {
   run_install --config-only --force
   umask "$previous_umask"
   assert_exit 0
-  assert_no_world_writable "$HOME/.config/opencode" "$HOME/.config/delegate-skills"
+  assert_no_group_or_world_writable "$HOME/.config/opencode" "$HOME/.config/delegate-skills"
 }
 
 # Existing permissive trees must be tightened too, not only newly created ones.
@@ -214,10 +215,31 @@ test_preexisting_writable_modes_are_tightened() {
 
   run_install --config-only --force
   assert_exit 0
-  assert_no_world_writable "$HOME/.config/opencode" "$HOME/.config/delegate-skills"
-  check find "$HOME/.config/opencode" "$HOME/.config/delegate-skills" -perm -0020 -print -quit
+  assert_no_group_or_world_writable "$HOME/.config/opencode" "$HOME/.config/delegate-skills"
+  check find "$HOME/.config/opencode" "$HOME/.config/delegate-skills" -perm /0022 -print -quit
   assert_eq "" "$OUT"
   assert_eq "600" "$(stat -c '%a' "$HOME/.config/opencode/nested/safe.txt")"
+}
+
+# A group-only writable directory must be reported by the doctor and tightened
+# by the installer. `chmod go-w` turns 0770 into 0750.
+test_group_writable_directory_is_tightened_and_fails_doctor() {
+  new_sandbox
+  run_install --config-only --force
+  assert_exit 0
+  mkdir -p "$HOME/.config/opencode/nested"
+  chmod 770 "$HOME/.config/opencode/nested"
+
+  run_install --doctor
+  assert_exit 1
+  assert_contains "$OUT" "FAIL permissions"
+  assert_contains "$OUT" "group- or world-writable paths:"
+
+  run_install --config-only --force
+  assert_exit 0
+  assert_eq "750" "$(stat -c '%a' "$HOME/.config/opencode/nested")"
+  check find "$HOME/.config/opencode" "$HOME/.config/delegate-skills" -perm /0022 -print -quit
+  assert_eq "" "$OUT"
 }
 
 # Symlink mode bits are always 0777 on Linux and are not permission findings.
@@ -226,6 +248,10 @@ test_symlinks_are_excluded_from_permission_checks() {
   run_install --config-only --force
   assert_exit 0
   mkdir -p "$HOME/.config/opencode/node_modules/.bin"
+  # The suite's umask may create these group-writable; pin them so this test
+  # isolates symlink handling rather than directory permissions.
+  chmod 755 "$HOME/.config/opencode/node_modules" \
+    "$HOME/.config/opencode/node_modules/.bin"
   ln -s ../../opencode.jsonc "$HOME/.config/opencode/node_modules/.bin/tool"
   run_install --doctor
   assert_exit 0

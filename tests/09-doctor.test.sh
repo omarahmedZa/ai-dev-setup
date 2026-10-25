@@ -26,6 +26,15 @@ test_doctor_fails_on_world_writable_config() {
   assert_contains "$OUT" "FAIL permissions"
   assert_contains "$OUT" "doctor: 8 passed, 1 failed, 0 skipped"
 }
+test_doctor_fails_on_group_writable_config() {
+  new_sandbox
+  run_install --config-only --force
+  chmod 770 "$HOME/.config/opencode"
+  run_install --doctor
+  assert_exit 1
+  assert_contains "$OUT" "FAIL permissions"
+  assert_contains "$OUT" "doctor: 8 passed, 1 failed, 0 skipped"
+}
 test_doctor_fails_on_broken_lane_config() {
   new_sandbox
   run_install --config-only --force

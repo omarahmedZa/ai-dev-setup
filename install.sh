@@ -4,7 +4,7 @@ set -euo pipefail
 
 # Installed config is executed by the agent (plugins, MCP definitions, lanes),
 # so its modes must not depend on the caller's umask: a permissive umask would
-# otherwise leave world-writable config trees any local user can rewrite.
+# otherwise leave group- or world-writable config trees another local user can rewrite.
 umask 022
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -248,10 +248,10 @@ apply_files() {
   done
 }
 
-# Tighten only pre-existing group/world-writable paths in the two config trees.
+# Tighten only pre-existing group- or world-writable paths in the two config trees.
 # New files are protected by umask 022; dry-run returns before reaching this.
 tighten_permissions() {
-  find "$CFG" "$HOME/.config/delegate-skills" \( -type f -o -type d \) -perm -0002 \
+  find "$CFG" "$HOME/.config/delegate-skills" \( -type f -o -type d \) -perm /0022 \
     -exec chmod go-w {} + 2>/dev/null || true
 }
 
@@ -541,9 +541,9 @@ doctor_plugin_deps() {
 
 doctor_permissions() {
   local found
-  found=$(find "$CFG" "$HOME/.config/delegate-skills" \( -type f -o -type d \) -perm -0002 -print 2>/dev/null || true)
+  found=$(find "$CFG" "$HOME/.config/delegate-skills" \( -type f -o -type d \) -perm /0022 -print 2>/dev/null || true)
   if [[ -n "$found" ]]; then
-    printf 'world-writable paths:\n%s\n' "$found"
+    printf 'group- or world-writable paths:\n%s\n' "$found"
     return 1
   fi
 }

@@ -163,7 +163,7 @@ Checks:
    `mcp.servers.serena`, and `providers.headroom`.
 4. `~/.config/opencode/node_modules/@opencode/plugin` exists.
 5. No path under `~/.config/opencode/` or `~/.config/delegate-skills/` is
-   world-writable.
+   group- or world-writable.
 6. `~/.agents/skills/opencode-delegate/SKILL.md` and
    `~/.agents/skills/delegate-setup/SKILL.md` exist.
 7. `~/.config/delegate-skills/config.json` parses, defines at least one lane,

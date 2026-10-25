@@ -109,7 +109,9 @@ BACKUP_DIR=""
 SKIPPED=0
 INSTALLED=0
 REMOVED=0
-CHANGED=()
+CHANGED=()    # existing destinations that differ from the repo (drift)
+PLAN_SRC=()   # copies deferred until after the drift decision
+PLAN_DEST=()
 FILE_MAP=()
 
 # Relative path of an installed file, used both for backup and messages.
@@ -134,9 +136,11 @@ backup_file() {
   printf 'backup: %s -> %s\n' "$path" "$dest"
 }
 
-# install_file <src> <dest>: copy one payload file, backing up any replaced
-# file. Drift without --force is collected and reported after the whole pass.
-install_file() {
+# plan_file <src> <dest>: decide what one payload file needs and, for an
+# existing destination that will be replaced, take its backup now. Copies are
+# queued in PLAN_SRC/PLAN_DEST so a drift abort can stop before any destination
+# is created or modified. Drift is recorded in CHANGED.
+plan_file() {
   local src=$1 dest=$2
   if [[ -e "$dest" ]] && cmp -s "$src" "$dest"; then
     SKIPPED=$((SKIPPED + 1))
@@ -154,16 +158,23 @@ install_file() {
 
   if [[ -e "$dest" ]]; then
     backup_file "$dest"
-    if [[ "$FORCE" != true ]]; then
-      CHANGED+=("$dest")
-      return 0
-    fi
+    CHANGED+=("$dest")
   fi
 
-  mkdir -p "$(dirname "$dest")"
-  cp "$src" "$dest"
-  INSTALLED=$((INSTALLED + 1))
-  printf 'installed %s\n' "$dest"
+  PLAN_SRC+=("$src")
+  PLAN_DEST+=("$dest")
+}
+
+# apply_files: perform every queued copy (the apply phase).
+apply_files() {
+  local i dest
+  for i in "${!PLAN_SRC[@]}"; do
+    dest=${PLAN_DEST[$i]}
+    mkdir -p "$(dirname "$dest")"
+    cp "${PLAN_SRC[$i]}" "$dest"
+    INSTALLED=$((INSTALLED + 1))
+    printf 'installed %s\n' "$dest"
+  done
 }
 
 # remove_stale <path>: back up and delete one known-obsolete config file.
@@ -203,25 +214,32 @@ install_all() {
   INSTALLED=0
   REMOVED=0
   CHANGED=()
+  PLAN_SRC=()
+  PLAN_DEST=()
 
   build_file_map
   local entry src dest
   for entry in "${FILE_MAP[@]}"; do
     src=${entry%%|*}
     dest=${entry#*|}
-    install_file "$src" "$dest"
+    plan_file "$src" "$dest"
   done
 
+  # Dry-run reports the whole plan (including stale removals) and writes nothing.
   if [[ "$DRY_RUN" == true ]]; then
     remove_stale "$CFG/opencode.json"
     remove_stale "$CFG/opencode.jsonc.headroom-backup"
     return 0
   fi
 
-  if (( ${#CHANGED[@]} > 0 )); then
+  # Drift abort: every backup is already written, but no destination has been
+  # created, modified, or removed.
+  if (( ${#CHANGED[@]} > 0 )) && [[ "$FORCE" != true ]]; then
     printf 'refusing to overwrite: %s\n' "${CHANGED[@]}" >&2
     die "config differs from the repository; re-run with --force (backups are kept)"
   fi
+
+  apply_files
 
   remove_stale "$CFG/opencode.json"
   remove_stale "$CFG/opencode.jsonc.headroom-backup"

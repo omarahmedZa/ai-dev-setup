@@ -41,3 +41,15 @@ test_skills_are_skipped_on_a_provisioned_rerun() {
   assert_exit 0
   assert_contains "$OUT" "skills up to date"
 }
+
+# A dry run on a provisioned machine must report the same skip as a real run.
+test_dry_run_reports_skills_up_to_date_when_provisioned() {
+  new_sandbox
+  run_install --config-only --force
+  assert_exit 0
+
+  run_install --config-only --dry-run
+  assert_exit 0
+  assert_contains "$OUT" "skills up to date"
+  assert_not_contains "$OUT" "would run: npx"
+}

@@ -300,26 +300,30 @@ ensure_plugin_deps() {
 # install_skills: delegation skills come from the upstream skills CLI, which
 # owns its install path under $HOME/.agents/skills.
 install_skills() {
-  if [[ "$DRY_RUN" == true ]]; then
-    printf 'would run: npx --yes skills add %s -g -y\n' "$DELEGATE_REPO"
-    printf 'would run: npx --yes skills add %s -g -y\n' "$FIND_SKILLS"
-    return 0
-  fi
+  local skill all_present=true
 
   # A fully provisioned rerun needs no network: only --force updates the
   # upstream skills, and a genuinely missing skill tree still installs.
   if [[ "$FORCE" != true ]]; then
-    local skill all_present=true
     for skill in opencode-delegate delegate-setup find-skills; do
       if [[ ! -f "$HOME/.agents/skills/$skill/SKILL.md" ]]; then
         all_present=false
         break
       fi
     done
-    if [[ "$all_present" == true ]]; then
-      printf 'skills up to date\n'
-      return 0
-    fi
+  else
+    all_present=false
+  fi
+
+  if [[ "$all_present" == true ]]; then
+    printf 'skills up to date\n'
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    printf 'would run: npx --yes skills add %s -g -y\n' "$DELEGATE_REPO"
+    printf 'would run: npx --yes skills add %s -g -y\n' "$FIND_SKILLS"
+    return 0
   fi
 
   need_cmd npx "install Node.js >= 18 (nvm) and retry"
@@ -438,6 +442,14 @@ check() {
   fi
 }
 
+# version_major: first numeric component of a tool's version output. Handles
+# shapes like "v20.19.0", "opencode v2.0.22", and "2.0.0-stub".
+version_major() {
+  local token
+  token=$(printf '%s\n' "${1:-}" | grep -oE '[0-9]+(\.[0-9]+)*' | head -n 1) || true
+  printf '%s\n' "${token%%.*}"
+}
+
 # doctor_commands: every tool the config depends on is on PATH, prints each
 # tool's version, and enforces the runtime minimums (Node >= 18, OpenCode V2).
 doctor_commands() {
@@ -456,18 +468,16 @@ doctor_commands() {
     return 1
   fi
 
-  version=$(node --version 2>/dev/null) || version=""
-  version=${version#v}
-  major=${version%%.*}
-  if [[ ! "$major" =~ ^[0-9]+$ ]] || (( 10#$major < 18 )); then
+  version=$(node --version 2>/dev/null | head -n 1) || true
+  major=$(version_major "$version")
+  if [[ -z "$major" ]] || (( 10#$major < 18 )); then
     printf 'Node.js >= 18 required (found %s)\n' "${version:-unknown}"
     return 1
   fi
 
-  version=$(opencode --version 2>/dev/null) || version=""
-  version=${version#v}
-  major=${version%%.*}
-  if [[ ! "$major" =~ ^[0-9]+$ ]] || (( 10#$major < 2 )); then
+  version=$(opencode --version 2>/dev/null | head -n 1) || true
+  major=$(version_major "$version")
+  if [[ -z "$major" ]] || (( 10#$major < 2 )); then
     printf 'OpenCode >= 2 required (found %s)\n' "${version:-unknown}"
     return 1
   fi

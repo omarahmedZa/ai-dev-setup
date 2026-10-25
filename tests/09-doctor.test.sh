@@ -44,7 +44,7 @@ test_doctor_reports_old_node_instead_of_dying() {
   new_sandbox
   run_install --config-only --force
   mkdir -p "$SANDBOX/oldnode"
-  printf '#!/bin/sh\nif [ "${1:-}" = "-v" ]; then echo v16.0.0; fi\nexit 0\n' \
+  printf '#!/bin/sh\nif [ "${1:-}" = "-v" ] || [ "${1:-}" = "--version" ]; then echo v16.0.0; fi\nexit 0\n' \
     > "$SANDBOX/oldnode/node"
   chmod +x "$SANDBOX/oldnode/node"
   PATH="$SANDBOX/oldnode:$PATH" run_install --doctor
@@ -91,7 +91,7 @@ test_doctor_rejects_opencode_v1() {
   cat > "$SANDBOX/stubs/opencode" <<'EOF'
 #!/bin/sh
 case "${1:-}" in
-  --version) printf 'v1.18.3\n' ;;
+  --version) printf 'opencode v1.18.3\n' ;;
   debug) printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/opencode" ;;
 esac
 exit 0
@@ -102,6 +102,24 @@ EOF
   assert_contains "$OUT" "FAIL commands"
   assert_contains "$OUT" "OpenCode >= 2 required"
   assert_contains "$OUT" "v1.18.3"
+}
+
+# The real CLI prints "opencode v2.0.22"; the version parser must accept it.
+test_doctor_accepts_real_v2_version_shape() {
+  new_sandbox
+  run_install --config-only --force
+  cat > "$SANDBOX/stubs/opencode" <<'EOF'
+#!/bin/sh
+case "${1:-}" in
+  --version) printf 'opencode v2.0.22\n' ;;
+  debug) printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/opencode" ;;
+esac
+exit 0
+EOF
+  chmod +x "$SANDBOX/stubs/opencode"
+  run_install --doctor
+  assert_exit 0
+  assert_contains "$OUT" "PASS commands"
 }
 
 test_doctor_fails_on_missing_config_file() {

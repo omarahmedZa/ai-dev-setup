@@ -287,6 +287,12 @@ ensure_plugin_deps() {
 
   ( cd "$CFG" && npm install --omit=dev ) || die "npm install failed"
 
+  # npm may rewrite package.json/package-lock.json (for example, normalizing
+  # the root name from the directory). Re-assert the repository files so the
+  # installed lock always matches the committed payload, then stamp its hash.
+  cp "$ROOT/config/package.json" "$CFG/package.json"
+  cp "$ROOT/config/package-lock.json" "$CFG/package-lock.json"
+
   sha256sum "$CFG/package-lock.json" | awk '{print $1}' > "$LOCKHASH_FILE"
   printf 'installed plugin dependencies\n'
 }
@@ -298,6 +304,22 @@ install_skills() {
     printf 'would run: npx --yes skills add %s -g -y\n' "$DELEGATE_REPO"
     printf 'would run: npx --yes skills add %s -g -y\n' "$FIND_SKILLS"
     return 0
+  fi
+
+  # A fully provisioned rerun needs no network: only --force updates the
+  # upstream skills, and a genuinely missing skill tree still installs.
+  if [[ "$FORCE" != true ]]; then
+    local skill all_present=true
+    for skill in opencode-delegate delegate-setup find-skills; do
+      if [[ ! -f "$HOME/.agents/skills/$skill/SKILL.md" ]]; then
+        all_present=false
+        break
+      fi
+    done
+    if [[ "$all_present" == true ]]; then
+      printf 'skills up to date\n'
+      return 0
+    fi
   fi
 
   need_cmd npx "install Node.js >= 18 (nvm) and retry"
@@ -408,35 +430,45 @@ check() {
   else
     FAIL_COUNT=$((FAIL_COUNT + 1))
     printf 'FAIL %s\n' "$desc"
-    if [[ -n "$output" ]]; then
-      while IFS= read -r line; do
-        printf '  %s\n' "$line"
-      done <<< "$output"
-    fi
+  fi
+  if [[ -n "$output" ]]; then
+    while IFS= read -r line; do
+      printf '  %s\n' "$line"
+    done <<< "$output"
   fi
 }
 
-# doctor_commands: every tool the config depends on is on PATH, and node is
-# new enough for the OpenCode V2 plugin runtime.
+# doctor_commands: every tool the config depends on is on PATH, prints each
+# tool's version, and enforces the runtime minimums (Node >= 18, OpenCode V2).
 doctor_commands() {
   local cmd version major
   local missing=()
   for cmd in git node opencode uv rtk headroom graphify; do
-    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing+=("$cmd")
+      continue
+    fi
+    version=$("$cmd" --version 2>/dev/null | head -n 1) || true
+    printf '%s: %s\n' "$cmd" "${version:-unknown}"
   done
   if (( ${#missing[@]} > 0 )); then
     printf 'missing: %s\n' "${missing[*]}"
     return 1
   fi
 
-  version=$(node -v 2>/dev/null) || {
-    printf 'node -v failed\n'
-    return 1
-  }
+  version=$(node --version 2>/dev/null) || version=""
   version=${version#v}
   major=${version%%.*}
   if [[ ! "$major" =~ ^[0-9]+$ ]] || (( 10#$major < 18 )); then
-    printf 'Node.js >= 18 required (found %s)\n' "$version"
+    printf 'Node.js >= 18 required (found %s)\n' "${version:-unknown}"
+    return 1
+  fi
+
+  version=$(opencode --version 2>/dev/null) || version=""
+  version=${version#v}
+  major=${version%%.*}
+  if [[ ! "$major" =~ ^[0-9]+$ ]] || (( 10#$major < 2 )); then
+    printf 'OpenCode >= 2 required (found %s)\n' "${version:-unknown}"
     return 1
   fi
 }
@@ -495,8 +527,8 @@ doctor_skills() {
   fi
 }
 
-# doctor_lanes: the delegation fleet config must parse, contain the seven known
-# lanes, and name an implementer for each.
+# doctor_lanes: the delegation fleet config must parse, define at least one
+# lane, and name an implementer for each.
 doctor_lanes() {
   node -e '
     const fs = require("fs");
@@ -507,10 +539,10 @@ doctor_lanes() {
       console.error("invalid JSON: " + err.message);
       process.exit(1);
     }
-    const lanes = cfg.lanes || {};
+    const lanes = cfg.lanes && typeof cfg.lanes === "object" ? cfg.lanes : {};
     const names = Object.keys(lanes);
-    if (names.length !== 7) {
-      console.error("expected 7 lanes, found " + names.length);
+    if (names.length === 0) {
+      console.error("no delegate lanes configured");
       process.exit(1);
     }
     const bad = names.filter((name) => !lanes[name] || !lanes[name].implementer);
@@ -522,13 +554,12 @@ doctor_lanes() {
 }
 
 doctor_rtk_rewrite() {
-  local out
-  out=$(rtk rewrite "git status" 2>&1) || {
-    printf '%s\n' "$out"
-    return 1
-  }
+  local out status=0
+  # rtk exits 3 when no global hook is installed even though the rewrite is
+  # correct; the spec check is output-based, so tolerate the exit status.
+  out=$(rtk rewrite "git status" 2>/dev/null) || status=$?
   if [[ "$out" != "rtk git status" ]]; then
-    printf 'expected "rtk git status", got "%s"\n' "$out"
+    printf 'expected "rtk git status", got "%s" (exit %d)\n' "$out" "$status"
     return 1
   fi
 }

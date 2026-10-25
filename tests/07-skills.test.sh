@@ -25,3 +25,19 @@ test_skills_failure_is_reported() {
   assert_exit 1
   assert_contains "$OUT" "skills install failed"
 }
+
+# A fully provisioned rerun must not touch the network: all expected skill
+# trees exist and --force was not passed.
+test_skills_are_skipped_on_a_provisioned_rerun() {
+  new_sandbox
+  run_install --config-only --force
+  assert_exit 0
+
+  mkdir -p "$SANDBOX/bin"
+  printf '#!/bin/sh\nexit 1\n' > "$SANDBOX/bin/npx"
+  chmod +x "$SANDBOX/bin/npx"
+
+  PATH="$SANDBOX/bin:$PATH" run_install --config-only
+  assert_exit 0
+  assert_contains "$OUT" "skills up to date"
+}

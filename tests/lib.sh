@@ -43,18 +43,37 @@ _fail() {
 
 new_sandbox() {
   local base="${TMPDIR:-/tmp}/ai-dev-setup-tests"
-  mkdir -p "$base"
-  SANDBOX=$(mktemp -d "$base/sandbox.XXXXXX")
+  if ! mkdir -p "$base"; then
+    printf 'error: cannot create test base directory: %s\n' "$base" >&2
+    exit 1
+  fi
+  if ! SANDBOX=$(mktemp -d "$base/sandbox.XXXXXX"); then
+    printf 'error: cannot create test sandbox under %s\n' "$base" >&2
+    exit 1
+  fi
+  if [[ -z "$SANDBOX" ]]; then
+    printf 'error: mktemp returned an empty sandbox path\n' >&2
+    exit 1
+  fi
   export SANDBOX
 
   export HOME="$SANDBOX/home"
-  mkdir -p "$HOME"
+  if ! mkdir -p "$HOME"; then
+    printf 'error: cannot create fake HOME: %s\n' "$HOME" >&2
+    exit 1
+  fi
   unset XDG_CONFIG_HOME
 
   export TEST_LOG="$SANDBOX/test.log"
-  : > "$TEST_LOG"
+  if ! : > "$TEST_LOG"; then
+    printf 'error: cannot create test log: %s\n' "$TEST_LOG" >&2
+    exit 1
+  fi
 
-  cp -R "$ROOT/tests/stubs" "$SANDBOX/stubs"
+  if ! cp -R "$ROOT/tests/stubs" "$SANDBOX/stubs"; then
+    printf 'error: cannot copy command stubs into sandbox: %s\n' "$SANDBOX/stubs" >&2
+    exit 1
+  fi
   export PATH="$SANDBOX/stubs:$TEST_BASE_PATH"
 }
 

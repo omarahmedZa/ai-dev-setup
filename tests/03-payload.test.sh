@@ -23,6 +23,16 @@ test_plugins_import_v2_package_only() {
   check grep -q '@opencode/plugin' "$ROOT/plugins/graphify.js"; assert_exit 0
   check grep -q '@opencode-ai/plugin' "$ROOT/config/package.json"; assert_exit 1
 }
+# npm derives a lockfile root name from the directory when package.json has no
+# identity, which rewrites the committed lock in ~/.config/opencode.
+test_package_json_has_stable_identity() {
+  check node -e '
+    const p=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+    if(p.name!=="opencode") throw new Error("name="+p.name);
+    if(p.version!=="0.0.0") throw new Error("version="+p.version);
+    if(p.private!==true) throw new Error("private="+p.private);
+  ' "$ROOT/config/package.json"; assert_exit 0
+}
 test_delegate_lanes_are_valid() {
   check node -e '
     const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));

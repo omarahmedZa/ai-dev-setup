@@ -35,11 +35,12 @@ Other steps:
   changed `package-lock.json` hash (stamped in `~/.config/opencode/.lockhash`).
 - **Delegation skills** via `npx --yes skills add`: `amElnagdy/delegate-skills`
   (20 skills) and `vercel-labs/skills@find-skills`, installed globally under
-  `~/.agents/skills/`.
+  `~/.agents/skills/`. When all three expected skill trees already exist and
+  `--force` is not set, this step is skipped and prints `skills up to date`.
 - **Stale cleanup**: an old `~/.config/opencode/opencode.json` (the V1 file that
   could re-merge conflicting settings) and `opencode.jsonc.headroom-backup` are
   backed up and removed.
-- **Seven delegate lanes** from `delegate/config.json`, all with an `opencode`
+- **Delegate lanes** from `delegate/config.json`, each with an `opencode`
   implementer and a model per lane.
 
 ## Requirements
@@ -49,7 +50,9 @@ Other steps:
   old, the installer stops with the exact `nvm` command to run; it does not
   install a runtime silently.
 - `git` and network access to clone this repository and reach the upstream
-  installers. `--config-only` still needs network access for `npx skills add`.
+  installers. On a fresh machine `--config-only` still needs network access for
+  `npx skills add`; once all three skill trees are present, a plain rerun
+  installs nothing from the network.
 - GitHub credentials for this **private** repository, established *before*
   cloning: run `gh auth login` (choose GitHub.com → HTTPS) or register an SSH
   key and use the SSH URL. `gh` (https://cli.github.com/) also provides
@@ -108,8 +111,10 @@ file's path relative to the config directory (so the delegate config lands in
 
 With no payload changes, the copy phase writes nothing and reports
 `up to date (N files unchanged)`; npm install is skipped when `.lockhash` still
-matches. The delegation-skills step still runs `npx skills add`, which is the
-only network action left on an otherwise unchanged re-run.
+matches. Once all three skill trees exist under `~/.agents/skills/`, the
+delegation-skills step is skipped too (`skills up to date`), so a fully
+provisioned rerun performs no network action. Pass `--force` to refresh the
+upstream skills.
 
 ## What is never installed
 
@@ -150,8 +155,8 @@ anything failed.
 
 Checks:
 
-1. Commands present: `git`, `node` ≥ 18, `opencode`, `uv`, `rtk`, `headroom`,
-   `graphify`.
+1. Commands present and their versions printed: `git`, `node`, `opencode`, `uv`,
+   `rtk`, `headroom`, `graphify`. Requires Node ≥ 18 and OpenCode V2 (major ≥ 2).
 2. `opencode.jsonc`, `cli.json`, and `AGENTS.md` exist under
    `~/.config/opencode/`.
 3. `opencode.jsonc` parses as JSON and contains `mcp.servers.headroom`,
@@ -159,9 +164,10 @@ Checks:
 4. `~/.config/opencode/node_modules/@opencode/plugin` exists.
 5. `~/.agents/skills/opencode-delegate/SKILL.md` and
    `~/.agents/skills/delegate-setup/SKILL.md` exist.
-6. `~/.config/delegate-skills/config.json` parses, has the seven lanes, and each
-   lane names an implementer.
-7. `rtk rewrite "git status"` emits `rtk git status`.
+6. `~/.config/delegate-skills/config.json` parses, defines at least one lane,
+   and every lane names an implementer.
+7. `rtk rewrite "git status"` emits `rtk git status` (the exit status is ignored,
+   because rtk exits 3 when no global hook is installed).
 8. Port 8787 is listening — only with `--with-headroom` (skipped when `ss` is
    unavailable).
 9. `opencode debug paths config` resolves to the OpenCode config directory

@@ -35,10 +35,25 @@ for test_file in "${test_files[@]}"; do
   fi
 done
 
-while read -r _ _ test_name; do
+# `declare -F` prints either "name" or "declare -f name"; print the last field
+# so both shapes work and an unexpected shape yields no names (fail closed).
+test_names=()
+while IFS= read -r test_name; do
+  [[ -n "$test_name" ]] || continue
+  test_names+=("$test_name")
+done < <(declare -F | awk '{print $NF}')
+
+test_count=0
+for test_name in "${test_names[@]}"; do
   [[ $test_name == test_* ]] || continue
   run_test "$test_name"
-done < <(declare -F)
+  test_count=$((test_count + 1))
+done
+
+if (( test_count == 0 )); then
+  printf 'no test_* functions were executed\n' >&2
+  exit 1
+fi
 
 if (( TEST_FAILURES > 0 )); then
   printf '%d of %d tests failed\n' "$TEST_FAILURES" "$TEST_NUMBER" >&2

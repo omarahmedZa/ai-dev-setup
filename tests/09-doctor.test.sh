@@ -9,6 +9,12 @@ test_doctor_passes_after_install() {
   assert_exit 0
   assert_not_contains "$OUT" "FAIL"
   assert_contains "$OUT" "PASS"
+  for label in "PASS commands" "PASS config files" "PASS config jsonc" \
+               "PASS plugin deps" "PASS delegate skills" "PASS delegate lanes" \
+               "PASS rtk rewrite" "PASS opencode paths"; do
+    assert_contains "$OUT" "$label"
+  done
+  assert_contains "$OUT" "doctor: 8 passed, 0 failed, 0 skipped"
 }
 test_doctor_fails_on_broken_lane_config() {
   new_sandbox
@@ -46,4 +52,82 @@ test_doctor_reports_old_node_instead_of_dying() {
   assert_contains "$OUT" "FAIL commands"
   assert_contains "$OUT" "Node.js >= 18 required"
   assert_contains "$OUT" "doctor: "
+}
+
+# Spec check 7 is output-based: rtk exits 3 when no global hook is installed,
+# but a correct rewrite must still pass.
+test_doctor_accepts_rtk_rewrite_that_exits_3() {
+  new_sandbox
+  run_install --config-only --force
+  cat > "$SANDBOX/stubs/rtk" <<'EOF'
+#!/bin/sh
+case "${1:-}" in
+  --version) printf '0.43.0\n'; exit 0 ;;
+  rewrite) printf 'rtk git status\n'; exit 3 ;;
+esac
+exit 0
+EOF
+  chmod +x "$SANDBOX/stubs/rtk"
+  run_install --doctor
+  assert_exit 0
+  assert_contains "$OUT" "PASS rtk rewrite"
+}
+
+# The spec only requires that every configured lane has an implementer; the
+# doctor must not hardcode the seven lanes of this machine.
+test_doctor_accepts_any_non_empty_lane_set() {
+  new_sandbox
+  run_install --config-only --force
+  echo '{"lanes":{"solo":{"implementer":"opencode"}}}' \
+    > "$HOME/.config/delegate-skills/config.json"
+  run_install --doctor
+  assert_exit 0
+  assert_contains "$OUT" "PASS delegate lanes"
+}
+
+test_doctor_rejects_opencode_v1() {
+  new_sandbox
+  run_install --config-only --force
+  cat > "$SANDBOX/stubs/opencode" <<'EOF'
+#!/bin/sh
+case "${1:-}" in
+  --version) printf 'v1.18.3\n' ;;
+  debug) printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/opencode" ;;
+esac
+exit 0
+EOF
+  chmod +x "$SANDBOX/stubs/opencode"
+  run_install --doctor
+  assert_exit 1
+  assert_contains "$OUT" "FAIL commands"
+  assert_contains "$OUT" "OpenCode >= 2 required"
+  assert_contains "$OUT" "v1.18.3"
+}
+
+test_doctor_fails_on_missing_config_file() {
+  new_sandbox
+  run_install --config-only --force
+  rm -- "$HOME/.config/opencode/cli.json"
+  run_install --doctor
+  assert_exit 1
+  assert_contains "$OUT" "FAIL config files"
+}
+
+test_doctor_fails_on_missing_plugin_directory() {
+  new_sandbox
+  run_install --config-only --force
+  mv "$HOME/.config/opencode/node_modules/@opencode/plugin" \
+     "$SANDBOX/plugin-moved"
+  run_install --doctor
+  assert_exit 1
+  assert_contains "$OUT" "FAIL plugin deps"
+}
+
+test_doctor_fails_on_missing_skills() {
+  new_sandbox
+  run_install --config-only --force
+  mv "$HOME/.agents/skills/delegate-setup/SKILL.md" "$SANDBOX/SKILL.md.moved"
+  run_install --doctor
+  assert_exit 1
+  assert_contains "$OUT" "FAIL delegate skills"
 }

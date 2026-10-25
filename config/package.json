@@ -1,4 +1,7 @@
 {
+  "name": "opencode",
+  "version": "0.0.0",
+  "private": true,
   "dependencies": {
     "@opencode/plugin": "^2.0.22"
   }

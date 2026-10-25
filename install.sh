@@ -393,10 +393,201 @@ Next steps (run these manually):
 EOF
 }
 
-# Placeholder until the doctor checks land in a later task.
+PASS_COUNT=0
+FAIL_COUNT=0
+SKIP_COUNT=0
+
+# check <description> <command...>: run one read-only probe, print PASS or FAIL,
+# and keep the doctor counters. A failing probe's output becomes the detail.
+check() {
+  local desc=$1 output line
+  shift
+  if output=$("$@" 2>&1); then
+    PASS_COUNT=$((PASS_COUNT + 1))
+    printf 'PASS %s\n' "$desc"
+  else
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+    printf 'FAIL %s\n' "$desc"
+    if [[ -n "$output" ]]; then
+      while IFS= read -r line; do
+        printf '  %s\n' "$line"
+      done <<< "$output"
+    fi
+  fi
+}
+
+# doctor_commands: every tool the config depends on is on PATH, and node is
+# new enough for the OpenCode V2 plugin runtime.
+doctor_commands() {
+  local cmd version major
+  local missing=()
+  for cmd in git node opencode uv rtk headroom graphify; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    printf 'missing: %s\n' "${missing[*]}"
+    return 1
+  fi
+
+  version=$(node -v 2>/dev/null) || {
+    printf 'node -v failed\n'
+    return 1
+  }
+  version=${version#v}
+  major=${version%%.*}
+  if [[ ! "$major" =~ ^[0-9]+$ ]] || (( 10#$major < 18 )); then
+    printf 'Node.js >= 18 required (found %s)\n' "$version"
+    return 1
+  fi
+}
+
+doctor_config_files() {
+  local file
+  local missing=()
+  for file in "$CFG/opencode.jsonc" "$CFG/cli.json" "$CFG/AGENTS.md"; do
+    [[ -f "$file" ]] || missing+=("$file")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    printf 'missing: %s\n' "${missing[*]}"
+    return 1
+  fi
+}
+
+# doctor_config_jsonc: opencode.jsonc is plain JSON (comments are not used), so
+# a strict parse is enough; then assert the V2 sections the setup provides.
+doctor_config_jsonc() {
+  node -e '
+    const fs = require("fs");
+    let cfg;
+    try {
+      cfg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    } catch (err) {
+      console.error("invalid JSON: " + err.message);
+      process.exit(1);
+    }
+    const get = (obj, path) =>
+      path.split(".").reduce((cur, key) => (cur == null ? undefined : cur[key]), obj);
+    const missing = ["mcp.servers.headroom", "mcp.servers.serena", "providers.headroom"]
+      .filter((path) => !get(cfg, path));
+    if (missing.length > 0) {
+      console.error("missing: " + missing.join(", "));
+      process.exit(1);
+    }
+  ' "$CFG/opencode.jsonc"
+}
+
+doctor_plugin_deps() {
+  local dir="$CFG/node_modules/@opencode/plugin"
+  if [[ ! -e "$dir" ]]; then
+    printf 'missing %s\n' "$dir"
+    return 1
+  fi
+}
+
+doctor_skills() {
+  local dir missing=()
+  for dir in "$HOME/.agents/skills/opencode-delegate" "$HOME/.agents/skills/delegate-setup"; do
+    [[ -f "$dir/SKILL.md" ]] || missing+=("$dir/SKILL.md")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    printf 'missing: %s\n' "${missing[*]}"
+    return 1
+  fi
+}
+
+# doctor_lanes: the delegation fleet config must parse, contain the seven known
+# lanes, and name an implementer for each.
+doctor_lanes() {
+  node -e '
+    const fs = require("fs");
+    let cfg;
+    try {
+      cfg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    } catch (err) {
+      console.error("invalid JSON: " + err.message);
+      process.exit(1);
+    }
+    const lanes = cfg.lanes || {};
+    const names = Object.keys(lanes);
+    if (names.length !== 7) {
+      console.error("expected 7 lanes, found " + names.length);
+      process.exit(1);
+    }
+    const bad = names.filter((name) => !lanes[name] || !lanes[name].implementer);
+    if (bad.length > 0) {
+      console.error("lanes without implementer: " + bad.join(", "));
+      process.exit(1);
+    }
+  ' "$HOME/.config/delegate-skills/config.json"
+}
+
+doctor_rtk_rewrite() {
+  local out
+  out=$(rtk rewrite "git status" 2>&1) || {
+    printf '%s\n' "$out"
+    return 1
+  }
+  if [[ "$out" != "rtk git status" ]]; then
+    printf 'expected "rtk git status", got "%s"\n' "$out"
+    return 1
+  fi
+}
+
+# doctor_port: read-only listen check; it never dials or starts the proxy.
+doctor_port() {
+  local out
+  out=$(ss -ltn 2>&1) || {
+    printf '%s\n' "$out"
+    return 1
+  }
+  if printf '%s\n' "$out" | awk '{print $4}' | grep -Eq '(^|[:.])8787$'; then
+    return 0
+  fi
+  printf 'nothing is listening on port 8787\n'
+  return 1
+}
+
+doctor_opencode_paths() {
+  local out
+  out=$(opencode debug paths config 2>&1) || {
+    printf '%s\n' "$out"
+    return 1
+  }
+  if [[ "$out" != "$CFG" ]]; then
+    printf 'expected %s, got %s\n' "$CFG" "$out"
+    return 1
+  fi
+}
+
+# doctor: read-only verification of an installed setup. It never starts an
+# OpenCode service and never calls the OpenCode API.
 doctor() {
-  printf 'doctor: not implemented yet\n'
-  return 0
+  PASS_COUNT=0
+  FAIL_COUNT=0
+  SKIP_COUNT=0
+
+  check "commands" doctor_commands
+  check "config files" doctor_config_files
+  check "config jsonc" doctor_config_jsonc
+  check "plugin deps" doctor_plugin_deps
+  check "delegate skills" doctor_skills
+  check "delegate lanes" doctor_lanes
+  check "rtk rewrite" doctor_rtk_rewrite
+
+  if [[ "$WITH_HEADROOM" == true ]]; then
+    if command -v ss >/dev/null 2>&1; then
+      check "port 8787" doctor_port
+    else
+      SKIP_COUNT=$((SKIP_COUNT + 1))
+      printf 'SKIP port 8787\n'
+    fi
+  fi
+
+  check "opencode paths" doctor_opencode_paths
+
+  printf 'doctor: %d passed, %d failed, %d skipped\n' \
+    "$PASS_COUNT" "$FAIL_COUNT" "$SKIP_COUNT"
+  (( FAIL_COUNT == 0 ))
 }
 
 main() {
@@ -413,7 +604,9 @@ main() {
   check_payload
 
   if [[ "$DOCTOR" == true ]]; then
-    doctor
+    if ! doctor; then
+      exit 1
+    fi
     return 0
   fi
 

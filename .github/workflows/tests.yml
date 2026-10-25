@@ -20,3 +20,37 @@ jobs:
         run: bash -n install.sh tests/*.sh
       - name: Run tests
         run: ./tests/run.sh
+
+  real-npm:
+    name: real npm install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies from the shipped lockfile
+        run: |
+          export HOME="$RUNNER_TEMP/npmhome"
+          mkdir -p "$HOME/.config/opencode"
+          cp config/package.json config/package-lock.json "$HOME/.config/opencode/"
+          (cd "$HOME/.config/opencode" && npm install --omit=dev --no-audit --no-fund)
+      - name: Assert npm created bin symlinks
+        run: |
+          export HOME="$RUNNER_TEMP/npmhome"
+          links=$(find "$HOME/.config/opencode/node_modules/.bin" -type l | wc -l)
+          echo "symlinks under node_modules/.bin: $links"
+          test "$links" -ge 1
+      - name: Assert npm output is not group- or world-writable
+        run: |
+          export HOME="$RUNNER_TEMP/npmhome"
+          scanned=$(find "$HOME/.config/opencode" \( -type f -o -type d \) | wc -l)
+          echo "scanned files and directories: $scanned"
+          test "$scanned" -ge 1
+          writable=$(find "$HOME/.config/opencode" \( -type f -o -type d \) -perm /0022 -print)
+          if [ -n "$writable" ]; then
+            echo "group- or world-writable paths found:" >&2
+            printf '%s\n' "$writable" >&2
+            exit 1
+          fi
+          echo "no group- or world-writable paths found"

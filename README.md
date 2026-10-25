@@ -109,6 +109,16 @@ Backups live under `~/.config/opencode/backups/<UTC timestamp>/`, preserving eac
 file's path relative to the config directory (so the delegate config lands in
 `backups/<timestamp>/delegate-skills/config.json`).
 
+To restore a backup, copy its contents back over the config directory:
+
+```sh
+cp -a ~/.config/opencode/backups/<timestamp>/. ~/.config/opencode/
+```
+
+A manual `npm install` in `~/.config/opencode` should run with `umask 022`, or
+be followed by `./install.sh --force`; otherwise the doctor may report
+group-writable `node_modules`.
+
 With no payload changes, the copy phase writes nothing and reports
 `up to date (N files unchanged)`; npm install is skipped when `.lockhash` still
 matches. Once all three skill trees exist under `~/.agents/skills/`, the

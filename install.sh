@@ -18,6 +18,8 @@ DOCTOR=false
 HELP=false
 
 NVM_HINT='curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && nvm install --lts'
+DELEGATE_REPO='amElnagdy/delegate-skills'
+FIND_SKILLS='vercel-labs/skills@find-skills'
 
 usage() {
   cat <<'EOF'
@@ -226,6 +228,27 @@ ensure_plugin_deps() {
   printf 'installed plugin dependencies\n'
 }
 
+# install_skills: delegation skills come from the upstream skills CLI, which
+# owns its install path under $HOME/.agents/skills.
+install_skills() {
+  if [[ "$DRY_RUN" == true ]]; then
+    printf 'would run: npx --yes skills add %s -g -y\n' "$DELEGATE_REPO"
+    printf 'would run: npx --yes skills add %s -g -y\n' "$FIND_SKILLS"
+    return 0
+  fi
+
+  need_cmd npx "install Node.js >= 18 (nvm) and retry"
+
+  npx --yes skills add "$DELEGATE_REPO" -g -y || die "skills install failed"
+  npx --yes skills add "$FIND_SKILLS" -g -y || die "skills install failed"
+
+  local count=0
+  if [[ -d "$HOME/.agents/skills" ]]; then
+    count=$(find "$HOME/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+  fi
+  printf '%d skills present\n' "$count"
+}
+
 # build_file_map: src|dest pairs for the config payload. Recursion over
 # plugins/ and skills/ preserves relative paths (including dotfiles).
 build_file_map() {
@@ -265,6 +288,7 @@ install_all() {
     remove_stale "$CFG/opencode.json"
     remove_stale "$CFG/opencode.jsonc.headroom-backup"
     ensure_plugin_deps
+    install_skills
     return 0
   fi
 
@@ -281,6 +305,7 @@ install_all() {
   remove_stale "$CFG/opencode.jsonc.headroom-backup"
 
   ensure_plugin_deps
+  install_skills
 
   if (( INSTALLED == 0 && REMOVED == 0 && SKIPPED > 0 )); then
     printf 'up to date (%d files unchanged)\n' "$SKIPPED"

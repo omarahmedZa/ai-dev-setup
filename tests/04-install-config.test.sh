@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 test_config_only_installs_every_payload_file() {
   new_sandbox; run_install --config-only --force
   assert_exit 0

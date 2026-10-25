@@ -89,6 +89,8 @@ check() {
 
 run_install() {
   local status=0
+  # OUT is read by the sourced test files after run_install returns.
+  # shellcheck disable=SC2034
   OUT=$(cd "$ROOT" && ./install.sh "$@" 2>&1) || status=$?
   STATUS=$status
 }

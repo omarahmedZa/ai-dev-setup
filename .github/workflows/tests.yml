@@ -14,6 +14,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Lint shell scripts
+        run: shellcheck -S warning install.sh tests/*.sh
       - name: Check shell syntax
         run: bash -n install.sh tests/*.sh
       - name: Run tests

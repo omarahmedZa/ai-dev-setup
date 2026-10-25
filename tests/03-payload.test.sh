@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 test_config_is_valid_json() {
   check node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' \
     "$ROOT/config/opencode.jsonc"

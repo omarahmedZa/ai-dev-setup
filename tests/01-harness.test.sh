@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 test_harness_assertions_work() {
   new_sandbox
   assert_eq "a" "a"

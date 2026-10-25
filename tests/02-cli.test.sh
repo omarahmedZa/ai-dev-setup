@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 test_help_lists_every_flag() {
   new_sandbox; run_install --help
   assert_exit 0

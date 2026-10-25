@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+printf 'opencode %s\n' "$*" >> "${TEST_LOG:-/dev/null}"
+
+case "${1:-}" in
+  --version)
+    printf '2.0.0-stub\n'
+    ;;
+  debug)
+    if [ "${2:-}" = "paths" ] && [ "${3:-}" = "config" ]; then
+      printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+    fi
+    ;;
+esac
+
+exit 0

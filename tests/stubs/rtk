@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+printf 'rtk %s\n' "$*" >> "${TEST_LOG:-/dev/null}"
+
+case "${1:-}" in
+  --version|-V)
+    printf '0.0.0-stub\n'
+    ;;
+  rewrite)
+    shift
+    printf 'rtk %s\n' "$*"
+    ;;
+esac
+
+exit 0

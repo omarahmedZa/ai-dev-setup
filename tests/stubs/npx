@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+printf 'npx %s\n' "$*" >> "${TEST_LOG:-/dev/null}"
+
+skills="$HOME/.agents/skills"
+
+case "${1:-}" in
+  --version)
+    printf '0.0.0-stub\n'
+    exit 0
+    ;;
+esac
+
+case "$*" in
+  *amElnagdy/delegate-skills*)
+    mkdir -p "$skills/opencode-delegate" "$skills/delegate-setup"
+    : > "$skills/opencode-delegate/SKILL.md"
+    : > "$skills/delegate-setup/SKILL.md"
+    ;;
+esac
+
+case "$*" in
+  *find-skills*)
+    mkdir -p "$skills/find-skills"
+    : > "$skills/find-skills/SKILL.md"
+    ;;
+esac
+
+exit 0

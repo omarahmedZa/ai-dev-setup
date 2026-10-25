@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+printf 'npm %s\n' "$*" >> "${TEST_LOG:-/dev/null}"
+
+case "${1:-}" in
+  --version|-v)
+    printf '0.0.0-stub\n'
+    ;;
+  install)
+    mkdir -p node_modules/@opencode/plugin
+    ;;
+esac
+
+exit 0

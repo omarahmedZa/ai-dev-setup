@@ -105,7 +105,10 @@ ensure_bin() {
     return 0
   fi
 
-  bash -c "$install_cmd" || die "failed to install $cmd"
+  bash -o pipefail -c "$install_cmd" || die "failed to install $cmd"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    die "installer for $cmd did not produce a working $cmd"
+  fi
 }
 
 # install_binaries: external tools the config depends on. --config-only skips

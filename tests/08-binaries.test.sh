@@ -10,6 +10,13 @@ test_present_binaries_are_not_reinstalled() {
   assert_contains "$OUT" "found headroom"
   assert_contains "$OUT" "found graphify"
   assert_not_contains "$OUT" "curl -fsSL https://opencode.ai"
+
+  # A real run must not invoke any installer when every tool is present.
+  new_sandbox; run_install --force
+  assert_exit 0
+  assert_file_not_contains "$TEST_LOG" "uv tool install"
+  assert_not_contains "$OUT" "missing "
+  assert_not_contains "$OUT" "curl -fsSL"
 }
 
 test_missing_binary_is_reported_with_command() {
@@ -20,9 +27,30 @@ test_missing_binary_is_reported_with_command() {
   assert_contains "$OUT" "raw.githubusercontent.com/rtk-ai/rtk"
 }
 
+test_failed_installer_exits_nonzero() {
+  new_sandbox; sandbox_without rtk
+  printf '#!/bin/sh\nexit 7\n' > "$SANDBOX/stubs/curl"
+  chmod +x "$SANDBOX/stubs/curl"
+  run_install --force
+  assert_exit 1
+  assert_contains "$OUT" "missing rtk"
+  assert_contains "$OUT" "failed to install rtk"
+}
+
+test_installer_without_binary_is_an_error() {
+  new_sandbox; sandbox_without rtk
+  printf '#!/bin/sh\nexit 0\n' > "$SANDBOX/stubs/curl"
+  chmod +x "$SANDBOX/stubs/curl"
+  run_install --force
+  assert_exit 1
+  assert_contains "$OUT" "installer for rtk did not produce a working rtk"
+}
+
 test_config_only_skips_binary_installation() {
-  new_sandbox; run_install --config-only --force
-  assert_not_contains "$OUT" "missing opencode"
+  new_sandbox; sandbox_without rtk
+  run_install --config-only --force
+  assert_not_contains "$OUT" "missing rtk"
+  assert_not_contains "$OUT" "found opencode"
   assert_file_not_contains "$TEST_LOG" "uv tool install"
 }
 

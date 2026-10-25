@@ -14,7 +14,11 @@ test_config_uses_v2_shapes() {
   ' "$ROOT/config/opencode.jsonc"; assert_exit 0
 }
 test_payload_has_no_absolute_home_paths() {
-  check bash -c '! grep -R "/home/stave" "$@"' _ \
+  local dir
+  for dir in config plugins skills delegate; do
+    check test -d "$ROOT/$dir"; assert_exit 0
+  done
+  check bash -c '! grep -RE "/(home|Users|root)/" "$@"' _ \
     "$ROOT/config" "$ROOT/plugins" "$ROOT/skills" "$ROOT/delegate"
   assert_exit 0
 }

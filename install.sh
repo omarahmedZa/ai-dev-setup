@@ -7,6 +7,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
 LOCKHASH_FILE="$CFG/.lockhash"
 
+# Tools installed without root land here; let later checks see them in this run.
+PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
+export PATH
+
 DRY_RUN=false
 # shellcheck disable=SC2034 # consumed by later installation stages
 FORCE=false
@@ -20,6 +24,12 @@ HELP=false
 NVM_HINT='curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && nvm install --lts'
 DELEGATE_REPO='amElnagdy/delegate-skills'
 FIND_SKILLS='vercel-labs/skills@find-skills'
+
+OPENCODE_INSTALL='curl -fsSL https://opencode.ai/v2/install | bash'
+UV_INSTALL='curl -LsSf https://astral.sh/uv/install.sh | sh'
+RTK_INSTALL='curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh'
+HEADROOM_INSTALL='uv tool install headroom-ai'
+GRAPHIFY_INSTALL='uv tool install graphifyy'
 
 usage() {
   cat <<'EOF'
@@ -78,6 +88,56 @@ check_payload() {
       die "not a complete checkout: $ROOT/$dir is missing"
     fi
   done
+}
+
+# ensure_bin <command> <install-command>: report what is present, install the
+# missing ones with the upstream installer unless this is a dry run.
+ensure_bin() {
+  local cmd=$1 install_cmd=$2 version
+  if command -v "$cmd" >/dev/null 2>&1; then
+    version=$("$cmd" --version 2>/dev/null | head -n 1) || version=""
+    printf 'found %s %s\n' "$cmd" "${version:-unknown}"
+    return 0
+  fi
+
+  printf 'missing %s: %s\n' "$cmd" "$install_cmd"
+  if [[ "$DRY_RUN" == true ]]; then
+    return 0
+  fi
+
+  bash -c "$install_cmd" || die "failed to install $cmd"
+}
+
+# install_binaries: external tools the config depends on. --config-only skips
+# this whole phase so no installer is piped from the network.
+install_binaries() {
+  ensure_bin opencode "$OPENCODE_INSTALL"
+  ensure_bin uv "$UV_INSTALL"
+  ensure_bin rtk "$RTK_INSTALL"
+  ensure_bin headroom "$HEADROOM_INSTALL"
+  ensure_bin graphify "$GRAPHIFY_INSTALL"
+}
+
+# deploy_headroom: opt-in proxy setup. `headroom deploy` rewrites
+# $CFG/opencode.jsonc, so the repository copy is re-asserted afterwards and
+# always wins. A deploy failure only warns.
+deploy_headroom() {
+  [[ "$WITH_HEADROOM" == true ]] || return 0
+
+  if [[ "$DRY_RUN" == true ]]; then
+    printf 'would run: headroom deploy --target opencode --port 8787\n'
+    return 0
+  fi
+
+  if headroom deploy --target opencode --port 8787; then
+    printf 'headroom deployed\n'
+  else
+    printf 'warning: headroom deploy failed; keeping the repository config\n' >&2
+  fi
+
+  mkdir -p "$CFG"
+  cp "$ROOT/config/opencode.jsonc" "$CFG/opencode.jsonc"
+  printf 're-asserted %s\n' "$CFG/opencode.jsonc"
 }
 
 parse_args() {
@@ -275,6 +335,10 @@ install_all() {
   PLAN_SRC=()
   PLAN_DEST=()
 
+  if [[ "$CONFIG_ONLY" != true ]]; then
+    install_binaries
+  fi
+
   build_file_map
   local entry src dest
   for entry in "${FILE_MAP[@]}"; do
@@ -289,6 +353,7 @@ install_all() {
     remove_stale "$CFG/opencode.jsonc.headroom-backup"
     ensure_plugin_deps
     install_skills
+    deploy_headroom
     return 0
   fi
 
@@ -306,6 +371,7 @@ install_all() {
 
   ensure_plugin_deps
   install_skills
+  deploy_headroom
 
   if (( INSTALLED == 0 && REMOVED == 0 && SKIPPED > 0 )); then
     printf 'up to date (%d files unchanged)\n' "$SKIPPED"

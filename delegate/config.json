@@ -1,0 +1,39 @@
+{
+  "version": "delegate-fleet.v1",
+  "lanes": {
+    "research-prototyping": {
+      "implementer": "opencode",
+      "model": "opencode/minimax-m3.1-flash-free",
+      "variant": "medium"
+    },
+    "implementation": {
+      "implementer": "opencode",
+      "model": "opencode/glm-5.3-flash-free",
+      "variant": "high"
+    },
+    "bug-fixes": {
+      "implementer": "opencode",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "variant": "high"
+    },
+    "complex": {
+      "implementer": "opencode",
+      "model": "opencode-go/mimo-v2.6-pro"
+    },
+    "tests": {
+      "implementer": "opencode",
+      "model": "opencode-go/qwen3.8-flash",
+      "variant": "high"
+    },
+    "commander": {
+      "implementer": "opencode",
+      "model": "opencode-go/kimi-k3.1-pro",
+      "variant": "high"
+    },
+    "brief-optimizer": {
+      "implementer": "opencode",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "variant": "high"
+    }
+  }
+}

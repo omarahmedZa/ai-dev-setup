@@ -3,3 +3,6 @@ backups/
 service.json
 .env
 *.headroom-backup
+.serena/
+.opencode/
+graphify-out/

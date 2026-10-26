@@ -4,7 +4,8 @@ test_config_only_installs_every_payload_file() {
   new_sandbox; run_install --config-only --force
   assert_exit 0
   for p in opencode.jsonc cli.json AGENTS.md plugins/rtk.ts plugins/graphify.js \
-           skills/graphify/SKILL.md skills/orchestrating-spec-pipelines/SKILL.md; do
+           skills/graphify/SKILL.md skills/orchestrating-spec-pipelines/SKILL.md \
+           commands/delegate.md; do
     assert_file_exists "$HOME/.config/opencode/$p"
   done
   assert_file_exists "$HOME/.config/delegate-skills/config.json"

@@ -20,6 +20,7 @@ Payload copied into `~/.config/opencode/`:
 | `config/package.json`, `config/package-lock.json` | `~/.config/opencode/` |
 | `plugins/*` (for example `rtk.ts`, `graphify.js`) | `~/.config/opencode/plugins/` |
 | `skills/*` (vendored `graphify`, `orchestrating-spec-pipelines`) | `~/.config/opencode/skills/` |
+| `commands/*` (for example `delegate.md`) | `~/.config/opencode/commands/` |
 | `delegate/config.json` | `~/.config/delegate-skills/config.json` |
 
 Other steps:
@@ -125,6 +126,21 @@ matches. Once all three skill trees exist under `~/.agents/skills/`, the
 delegation-skills step is skipped too (`skills up to date`), so a fully
 provisioned rerun performs no network action. Pass `--force` to refresh the
 upstream skills.
+
+## Slash commands
+
+`commands/delegate.md` installs a global `/delegate` command:
+
+```text
+/delegate tests add coverage for the installer preflight
+/delegate bug-fixes fix the config path check
+/delegate research-prototyping compare the two delegation approaches
+```
+
+The first word selects a lane from `AGENTS.md`; without one, the lane is chosen
+for you. `/delegate` loads the `opencode-delegate` skill, writes the brief, shows
+it for approval, dispatches the worker, reviews the diff, and commits only
+verified work.
 
 ## What is never installed
 

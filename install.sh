@@ -88,7 +88,7 @@ check_node() {
 
 check_payload() {
   local dir
-  for dir in config plugins skills delegate; do
+  for dir in config plugins skills commands delegate; do
     if [[ ! -d "$ROOT/$dir" ]]; then
       die "not a complete checkout: $ROOT/$dir is missing"
     fi
@@ -351,7 +351,7 @@ install_skills() {
 }
 
 # build_file_map: src|dest pairs for the config payload. Recursion over
-# plugins/ and skills/ preserves relative paths (including dotfiles).
+# plugins/, skills/, and commands/ preserves relative paths (including dotfiles).
 build_file_map() {
   FILE_MAP=(
     "$ROOT/config/opencode.jsonc|$CFG/opencode.jsonc"
@@ -364,7 +364,7 @@ build_file_map() {
   local src
   while IFS= read -r src; do
     FILE_MAP+=("$src|$CFG/${src#"$ROOT"/}")
-  done < <(find "$ROOT/plugins" "$ROOT/skills" -type f -print | LC_ALL=C sort)
+  done < <(find "$ROOT/plugins" "$ROOT/skills" "$ROOT/commands" -type f -print | LC_ALL=C sort)
 }
 
 install_all() {

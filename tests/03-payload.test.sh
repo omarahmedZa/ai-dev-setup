@@ -17,12 +17,21 @@ test_config_uses_v2_shapes() {
 }
 test_payload_has_no_absolute_home_paths() {
   local dir
-  for dir in config plugins skills delegate; do
+  for dir in config plugins skills commands delegate; do
     check test -d "$ROOT/$dir"; assert_exit 0
   done
   check bash -c '! grep -RE "/(home|Users|root)/" "$@"' _ \
-    "$ROOT/config" "$ROOT/plugins" "$ROOT/skills" "$ROOT/delegate"
+    "$ROOT/config" "$ROOT/plugins" "$ROOT/skills" "$ROOT/commands" "$ROOT/delegate"
   assert_exit 0
+}
+
+test_delegate_command_is_available() {
+  local cmd="$ROOT/commands/delegate.md"
+  check test -f "$cmd"; assert_exit 0
+  check grep -q '^description:' "$cmd"; assert_exit 0
+  check grep -qF -- '$ARGUMENTS' "$cmd"; assert_exit 0
+  check grep -qF -- 'opencode-delegate' "$cmd"; assert_exit 0
+  check grep -qF -- '--lane' "$cmd"; assert_exit 0
 }
 test_plugins_import_v2_package_only() {
   check grep -q '@opencode/plugin' "$ROOT/plugins/rtk.ts"; assert_exit 0

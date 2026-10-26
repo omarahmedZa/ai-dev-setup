@@ -3,7 +3,7 @@
   "lanes": {
     "research-prototyping": {
       "implementer": "opencode",
-      "model": "opencode/minimax-m3.1-flash-free",
+      "model": "opencode-go/minimax-m3.1-flash",
       "variant": "medium"
     },
     "implementation": {
@@ -23,7 +23,7 @@
     "tests": {
       "implementer": "opencode",
       "model": "opencode-go/qwen3.8-flash",
-      "variant": "high"
+      "variant": "xhigh"
     },
     "commander": {
       "implementer": "opencode",
